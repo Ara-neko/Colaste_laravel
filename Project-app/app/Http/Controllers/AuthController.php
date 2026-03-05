@@ -5,15 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
+
     public function register(Request $request) {
         $data = $request->validate([
             'name' => 'required|string',
             'email' => 'required|string|unique:users,email',
-            'password' => 'required|string|confirmed'
+            'password' => 'required|string|confirmed',
+            'role' => 'required|in:admin,writer'
         ]);
 
         $user = User::create([
@@ -22,9 +26,13 @@ class AuthController extends Controller
             'password' => bcrypt($data['password']),
         ]);
 
+        $user->assignRole($data['role']);
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        return response(['user' => $user, 'token' => $token], 201);
+        return response([
+        'user' => $user->load('roles', 'permissions'), 
+        'token' => $token
+    ], 201);
     }
 
     public function login(Request $request) {
@@ -37,9 +45,14 @@ class AuthController extends Controller
             return response(['message' => 'Invalid credentials'], 401);
         }
 
+        $user = auth()->user();
+
         $token = auth()->user()->createToken('auth_token')->plainTextToken;
 
-        return response(['user' => auth()->user(), 'token' => $token], 200);
+        return response([
+        'user' => $user->load('roles', 'permissions'), 
+        'token' => $token
+    ], 200);
     }
 
     public function logout() {
